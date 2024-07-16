@@ -10,6 +10,7 @@ from .models import *
 from django.db.models import Q
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.hashers import check_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from .tasks import send_email
 # Create your views here.
@@ -230,6 +231,53 @@ class UsersManageView(APIView):
         serializer = UserSerializer(users, many=True)
         return Response(serializer.data)
     
+    def patch(self, request):
+        location = request.data.get("location")
+        p = request.data.get("profile_picture")
+
+        current_password = request.data.get("currentPassword")
+        new_password = request.data.get("newPassword")
+        print(new_password, "new password>>>>>>>>")
+        print(current_password, "current password>>>>>>>")
+
+        user_id = request.data.get("id")
+        if not user_id:
+            return Response(
+                {"error": "User ID is required."}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            user = User.objects.get(id=user_id)
+            print("user mail >>>>>", user.email)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        if current_password and new_password:
+            print("validation-1 !!!!!!!!!!!!!!!!!111")
+            if check_password(current_password, user.password):
+                print("validation-2 !!!!!!!!!!!!!!!!")
+                user.set_password(new_password)
+                user.save()
+                return Response(status=status.HTTP_200_OK)
+            else:
+                print("password didnt changed password")
+                return Response(
+                    {"message": "Invalid current password."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        serializer = UserSerializer(user, data=request.data, partial=True)
+
+        if serializer.is_valid():
+            print("hehehehehehehehehe>>>>>>>>>>>>>")
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        print("heheheheh>>>>>>>>>>>>")
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+    
 
 class DoctorListView(APIView):
 
@@ -241,3 +289,7 @@ class DoctorListView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_user(request):
+    user_id = request.query_parmas.get("userId")
