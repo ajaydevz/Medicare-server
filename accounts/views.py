@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.generics import CreateAPIView
 from rest_framework.decorators import api_view, permission_classes
 from .serializers import *
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
@@ -13,6 +14,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.hashers import check_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from .tasks import send_email
+from django.shortcuts import get_object_or_404
 # Create your views here.
 
 class RegisterView(APIView):
@@ -224,7 +226,8 @@ class RegisterDoctorView(APIView):
 
 class UsersManageView(APIView):
 
-    permission_classes=[IsAdminUser]
+    parser_classes = [MultiPartParser, FormParser]
+    permission_classes = [AllowAny]
 
     def get(self,request, pk=None):
         users = User.objects.filter(Q(is_doctor=False) & Q(is_superuser=False) & Q(is_staff=False))
@@ -233,48 +236,38 @@ class UsersManageView(APIView):
     
     def patch(self, request):
         location = request.data.get("location")
-        p = request.data.get("profile_picture")
+        profile_picture = request.data.get("profile_picture")
 
         current_password = request.data.get("currentPassword")
         new_password = request.data.get("newPassword")
-        print(new_password, "new password>>>>>>>>")
-        print(current_password, "current password>>>>>>>")
-
         user_id = request.data.get("id")
+
         if not user_id:
-            return Response(
-                {"error": "User ID is required."}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "User ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             user = User.objects.get(id=user_id)
-            print("user mail >>>>>", user.email)
         except User.DoesNotExist:
-            return Response(
-                {"error": "User not found."}, status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        # Handle password update if both current and new passwords are provided
         if current_password and new_password:
-            print("validation-1 !!!!!!!!!!!!!!!!!111")
-            if check_password(current_password, user.password):
-                print("validation-2 !!!!!!!!!!!!!!!!")
-                user.set_password(new_password)
-                user.save()
-                return Response(status=status.HTTP_200_OK)
-            else:
-                print("password didnt changed password")
-                return Response(
-                    {"message": "Invalid current password."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            if not check_password(current_password, user.password):
+                return Response({"message": "Invalid current password."},
+                                status=status.HTTP_400_BAD_REQUEST)
 
+            user.set_password(new_password)
+            user.save()
+            return Response({"message": "Password updated successfully."},
+                            status=status.HTTP_200_OK)
+
+        # Otherwise, update user profile data
         serializer = UserSerializer(user, data=request.data, partial=True)
-
         if serializer.is_valid():
-            print("hehehehehehehehehe>>>>>>>>>>>>>")
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
-        print("heheheheh>>>>>>>>>>>>")
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
     
@@ -289,7 +282,16 @@ class DoctorListView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 
+    
+    
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_user(request):
-    user_id = request.query_parmas.get("userId")
+    user_id = request.query_params.get("userId")
+    user = get_object_or_404(User, id=user_id)
+    serializer = UserSerializer(user).data
+    
+    return Response(serializer, status=status.HTTP_200_OK)
+
+
