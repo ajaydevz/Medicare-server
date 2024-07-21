@@ -49,7 +49,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework',
     'corsheaders',
-    'accounts'
+    'accounts',
+    'booking'
 ]
 
 
@@ -152,6 +153,8 @@ STATIC_URL = 'static/'
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
+
+
 AUTH_USER_MODEL = 'accounts.User'
 
 # Default primary key field type
@@ -176,6 +179,10 @@ EMAIL_HOST_PASSWORD = "blds vhed slzi sosh"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 
+
+# At the end of your settings.py
+print("MEDIA_ROOT:", MEDIA_ROOT)
+print("MEDIA_URL:", MEDIA_URL)
 
 
 
